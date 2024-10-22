@@ -5,14 +5,19 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 import org.testcontainers.containers.DockerComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import javax.annotation.PostConstruct;
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 
@@ -31,6 +36,22 @@ class FixedWindowRateLimitControllerTest {
     private final static String IMPORTANT_CUSTOMER_ID = "ImportantCustomerId";
 
     private final RestTemplate restTemplate = new RestTemplate();
+
+    @PostConstruct
+    public void init() {
+        //restTemplate crashes the app when receiving 429. Disabling error handling.
+        restTemplate.setErrorHandler(new ResponseErrorHandler() {
+            @Override
+            public boolean hasError(ClientHttpResponse response) throws IOException {
+                // Don't treat 429 as an error
+                return response.getStatusCode() != HttpStatus.TOO_MANY_REQUESTS;
+            }
+            @Override
+            public void handleError(ClientHttpResponse response) throws IOException {
+                // nothing
+            }
+        });
+    }
 
     @Value("http://localhost:${local.server.port}/api/v1/ratelimit/fixedwindow")
     private String apiUrl;
@@ -93,6 +114,7 @@ class FixedWindowRateLimitControllerTest {
 
     // 1 request for 192.168.100.150 per HOUR
     // You can temporary disable this test with @Disabled as this test requires for 3 mins of wall clock time to check.
+    @Disabled
     @Test
     // @Disabled
     public void testPerHourRateLimit() throws InterruptedException {
